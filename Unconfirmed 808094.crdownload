@@ -1,0 +1,29 @@
+& {
+[Net.ServicePointManager]::SecurityProtocol=3072
+$u=Read-Host 'Target endpoint URL'
+$a=Read-Host 'Auth header, e.g. Authorization: Bearer abc123 (Enter if none)'
+$b=Read-Host 'Sample body with {{prompt}} as the user message (Enter to auto-detect)'
+$h=@{};if($a -match '^\s*([^:]+):\s*(.+)$'){$h[$matches[1].Trim()]=$matches[2].Trim()}
+if($b){$c=@($b)}else{$m=Read-Host 'Model name (Enter for gpt-4o-mini)';if(!$m){$m='gpt-4o-mini'}
+$c=@('{"model":"'+$m+'","messages":[{"role":"user","content":"{{prompt}}"}]}')
+$c+='prompt','query','input','message','question'|ForEach-Object{'{"'+$_+'":"{{prompt}}"}'}}
+$K='content','text','response','output','answer','reply','result','completion','generated_text'
+function W($v,$p){if($v -is [string]){[void]$L.Add([pscustomobject]@{p=$p.TrimStart('.');v=$v})}
+elseif($v -is [array]){for($i=0;$i -lt $v.Count;$i++){W $v[$i] "$p.$i"}}
+elseif($v -is [Management.Automation.PSCustomObject]){
+foreach($x in $v.PSObject.Properties){W $x.Value "$p.$($x.Name)"}}}
+foreach($t in $c){try{$d=$t.Replace('{{prompt}}','Reply with only the word PONG')
+$q=@{Uri=$u;Method='Post';Headers=$h;ContentType='application/json';Body=$d}
+$w=Invoke-WebRequest @q -UseBasicParsing -TimeoutSec 60
+$j=$w.Content|ConvertFrom-Json;if($j.error -or $j.detail){continue}
+$L=[Collections.ArrayList]@();W $j ''
+$x=$L|Where-Object{$_.v -match 'pong'}|Sort-Object{$_.v.Length}|Select-Object -First 1
+if(!$x){$x=$L|Where-Object{$K -contains ($_.p -split '\.')[-1]}|
+Sort-Object{-$_.v.Length}|Select-Object -First 1}
+if($x){$OK=$t;$RP=$x.p;break}}catch{}}
+if($OK){"`n=== Paste into Cisco AI Defense ===";"Target Endpoint URL: $u"
+"Request Body Template: $OK";"Path to Model Response: $RP"
+if($h.Count){"HTTP Auth Header Key: $($h.Keys)"
+'HTTP Auth Header Value: the text you entered after the colon'}}
+else{'No working format found. Check the URL and auth header, or rerun and paste a sample body.'}
+}
